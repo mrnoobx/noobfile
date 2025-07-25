@@ -15,16 +15,17 @@ logging.basicConfig(
     level=logging.INFO,
     datefmt="%d/%m/%Y %H:%M:%S",
     format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(stream=sys.stdout),
-              handlers.RotatingFileHandler("streambot.log", mode="a", maxBytes=104857600, backupCount=2, encoding="utf-8")],)
+    handlers=[
+        logging.StreamHandler(stream=sys.stdout),
+        handlers.RotatingFileHandler("streambot.log", mode="a", maxBytes=104857600, backupCount=2, encoding="utf-8")
+    ],
+)
 
 logging.getLogger("aiohttp").setLevel(logging.ERROR)
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
 logging.getLogger("aiohttp.web").setLevel(logging.ERROR)
 
 server = web.AppRunner(web_server())
-
-loop = asyncio.get_event_loop()
 
 async def start_services():
     print()
@@ -35,12 +36,11 @@ async def start_services():
     print()
     print("-------------------- Initializing Telegram Bot --------------------")
 
-
     await FileStream.start()
     bot_info = await FileStream.get_me()
     FileStream.id = bot_info.id
     FileStream.username = bot_info.username
-    FileStream.fname=bot_info.first_name
+    FileStream.fname = bot_info.first_name
     print("------------------------------ DONE ------------------------------")
     print()
     print("---------------------- Initializing Clients ----------------------")
@@ -54,24 +54,33 @@ async def start_services():
     print()
     print("------------------------- Service Started -------------------------")
     print("                        bot =>> {}".format(bot_info.first_name))
-    if bot_info.dc_id:
+    if getattr(bot_info, "dc_id", None):
         print("                        DC ID =>> {}".format(str(bot_info.dc_id)))
     print(" URL =>> {}".format(Server.URL))
     print("------------------------------------------------------------------")
     await idle()
 
 async def cleanup():
-    await server.cleanup()
-    await FileStream.stop()
+    try:
+        await server.cleanup()
+    except Exception as e:
+        logging.warning(f"Error during server cleanup: {e}")
+    try:
+        await FileStream.stop()
+    except Exception as e:
+        logging.warning(f"Error during FileStream.stop(): {e}")
+
+async def main():
+    try:
+        await start_services()
+    except KeyboardInterrupt:
+        print("Stopping due to keyboard interrupt...")
+    except Exception as e:
+        logging.error("Exception in main: %s", traceback.format_exc())
+    finally:
+        await cleanup()
+        print("------------------------ Stopped Services ------------------------")
 
 if __name__ == "__main__":
-    try:
-        loop.run_until_complete(start_services())
-    except KeyboardInterrupt:
-        pass
-    except Exception as err:
-        logging.error(traceback.format_exc())
-    finally:
-        loop.run_until_complete(cleanup())
-        loop.stop()
-        print("------------------------ Stopped Services ------------------------")
+    asyncio.run(main())
+    
